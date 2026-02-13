@@ -1,0 +1,7 @@
+schema_version: "1.0"
+
+producers:
+  - name: composite-monorepo
+    repository: https://github.com/pravasna30-dev/bazel-monorepo.git
+    ref: main
+    path: ../bazel-monorepo

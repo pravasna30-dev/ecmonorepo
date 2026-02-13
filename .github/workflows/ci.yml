@@ -1,0 +1,61 @@
+name: Composite Build CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout bazel-app
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Clone producer repositories
+        run: |
+          count=$(yq '.producers | length' producer.yaml)
+          for i in $(seq 0 $(( count - 1 ))); do
+            name=$(yq ".producers[$i].name" producer.yaml)
+            repo=$(yq ".producers[$i].repository" producer.yaml)
+            ref=$(yq ".producers[$i].ref" producer.yaml)
+            path=$(yq ".producers[$i].path" producer.yaml)
+
+            echo "Cloning producer: $name ($repo @ $ref) into $path"
+            git clone --branch "$ref" --single-branch --depth 1 "$repo" "$path"
+          done
+
+      - name: Verify producer layout
+        run: |
+          echo "Directory layout:"
+          ls -la ..
+          count=$(yq '.producers | length' producer.yaml)
+          for i in $(seq 0 $(( count - 1 ))); do
+            path=$(yq ".producers[$i].path" producer.yaml)
+            name=$(yq ".producers[$i].name" producer.yaml)
+            if [ -d "$path" ]; then
+              echo "Producer '$name' found at $path"
+            else
+              echo "ERROR: Producer '$name' not found at $path"
+              exit 1
+            fi
+          done
+
+      - name: Build
+        run: bazel build //:app
+
+      - name: Run
+        run: bazel run //:app
