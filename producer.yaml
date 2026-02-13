@@ -5,3 +5,5 @@ producers:
     repository: https://github.com/pravasna30-dev/bazel-monorepo.git
     ref: main
     path: ../bazel-monorepo
+    targets:
+      - "//low-level-1:LowLevelOne"
