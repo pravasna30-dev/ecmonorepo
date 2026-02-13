@@ -94,6 +94,41 @@ jobs:
           echo "Generated BUILD:"
           cat BUILD
 
+      - name: Generate composite App.java
+        run: |
+          echo ""
+          echo "--- Generating composite App.java ---"
+
+          APP_FILE="src/main/java/com/example/app/App.java"
+
+          # Collect imports from all producers
+          IMPORTS=""
+          CALLS=""
+          count=$(yq '.producers | length' producer.yaml)
+          for i in $(seq 0 $(( count - 1 ))); do
+            import_count=$(yq ".producers[$i].imports | length" producer.yaml)
+            for j in $(seq 0 $(( import_count - 1 ))); do
+              class=$(yq ".producers[$i].imports[$j].class" producer.yaml)
+              call=$(yq ".producers[$i].imports[$j].call" producer.yaml)
+              IMPORTS="${IMPORTS}import ${class};"$'\n'
+              CALLS="${CALLS}        ${call};"$'\n'
+            done
+          done
+
+          cat > "$APP_FILE" << EOF
+          package com.example.app;
+
+          ${IMPORTS}
+          public class App {
+              public static void main(String[] args) {
+                  System.out.println("I love bazel");
+          ${CALLS}    }
+          }
+          EOF
+
+          echo "Generated App.java:"
+          cat "$APP_FILE"
+
       - name: Verify producer layout
         run: |
           echo "Directory layout:"

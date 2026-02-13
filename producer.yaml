@@ -7,3 +7,6 @@ producers:
     path: ../bazel-monorepo
     targets:
       - "//low-level-1:LowLevelOne"
+    imports:
+      - class: com.acme.arc.dep.test.LowOneMain
+        call: LowOneMain.say()
