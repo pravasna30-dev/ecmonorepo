@@ -1,4 +1,4 @@
-# bazel-app
+# ecmonorepo
 
 A standalone Bazel hello world application that demonstrates cross-repository dependencies using Bzlmod.
 
@@ -14,14 +14,14 @@ This project expects the following directory structure:
 
 ```
 parent-directory/
-  bazel-app/          # This repository
+  ecmonorepo/          # This repository
   bazel-monorepo/     # https://github.com/pravasna30-dev/bazel-monorepo
 ```
 
 Clone both repositories side by side:
 
 ```bash
-git clone https://github.com/pravasna30-dev/bazel-app.git
+git clone https://github.com/pravasna30-dev/ecmonorepo.git
 git clone https://github.com/pravasna30-dev/bazel-monorepo.git
 ```
 

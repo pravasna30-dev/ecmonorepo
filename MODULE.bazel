@@ -1,5 +1,5 @@
 module(
-    name = "bazel-app",
+    name = "ecmonorepo",
     version = "1.0.0",
 )
 

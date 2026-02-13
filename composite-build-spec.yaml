@@ -36,8 +36,8 @@ schema_version: "1.0"
 # =============================================================================
 
 consumer:
-  name: bazel-app
-  repository: https://github.com/pravasna30-dev/bazel-app.git
+  name: ecmonorepo
+  repository: https://github.com/pravasna30-dev/ecmonorepo.git
   build_system: bazel            # bazel | gradle | maven
   language: java
   language_version: "21"
@@ -114,8 +114,8 @@ producers:
 #   build_system: bazel
 #
 # consumers:
-#   - name: bazel-app
-#     repository: https://github.com/pravasna30-dev/bazel-app.git
+#   - name: ecmonorepo
+#     repository: https://github.com/pravasna30-dev/ecmonorepo.git
 #     ref: main
 #     build_system: bazel
 #     modules:
