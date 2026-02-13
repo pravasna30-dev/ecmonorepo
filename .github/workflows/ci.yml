@@ -39,12 +39,17 @@ jobs:
             git clone --branch "$ref" --single-branch --depth 1 "$repo" "$path"
           done
 
-      - name: Generate composite MODULE.bazel
+      - name: Wire Bazel producers (MODULE.bazel)
         run: |
           echo ""
-          echo "--- Generating composite MODULE.bazel ---"
+          echo "--- Wiring Bazel producers ---"
           count=$(yq '.producers | length' PRODUCERS.yaml)
           for i in $(seq 0 $(( count - 1 ))); do
+            build_system=$(yq ".producers[$i].build_system" PRODUCERS.yaml)
+            if [ "$build_system" != "bazel" ]; then
+              continue
+            fi
+
             name=$(yq ".producers[$i].name" PRODUCERS.yaml)
             path=$(yq ".producers[$i].path" PRODUCERS.yaml)
 
@@ -61,6 +66,49 @@ jobs:
           echo "Generated MODULE.bazel:"
           cat MODULE.bazel
 
+      - name: Wire Gradle producers (build JAR + third_party)
+        run: |
+          echo ""
+          echo "--- Wiring Gradle producers ---"
+          count=$(yq '.producers | length' PRODUCERS.yaml)
+          for i in $(seq 0 $(( count - 1 ))); do
+            build_system=$(yq ".producers[$i].build_system" PRODUCERS.yaml)
+            if [ "$build_system" != "gradle" ]; then
+              continue
+            fi
+
+            name=$(yq ".producers[$i].name" PRODUCERS.yaml)
+            path=$(yq ".producers[$i].path" PRODUCERS.yaml)
+            build_command=$(yq ".producers[$i].build_command" PRODUCERS.yaml)
+            jar_path=$(yq ".producers[$i].jar_path" PRODUCERS.yaml)
+
+            echo "Building Gradle producer: $name"
+            pushd "$path"
+            chmod +x gradlew
+            $build_command
+            popd
+
+            # Copy JAR to third_party
+            mkdir -p "third_party/$name"
+            jar_filename=$(basename "$jar_path")
+            cp "$path/$jar_path" "third_party/$name/$jar_filename"
+            echo "Copied $jar_filename to third_party/$name/"
+
+            # Generate java_import BUILD file
+            cat > "third_party/$name/BUILD" << EOF
+            load("@rules_java//java:defs.bzl", "java_import")
+
+            java_import(
+                name = "library",
+                jars = ["$jar_filename"],
+                visibility = ["//visibility:public"],
+            )
+          EOF
+
+            echo "Generated third_party/$name/BUILD:"
+            cat "third_party/$name/BUILD"
+          done
+
       - name: Generate composite BUILD
         run: |
           echo ""
@@ -70,12 +118,19 @@ jobs:
           DEPS=""
           count=$(yq '.producers | length' PRODUCERS.yaml)
           for i in $(seq 0 $(( count - 1 ))); do
+            build_system=$(yq ".producers[$i].build_system" PRODUCERS.yaml)
             name=$(yq ".producers[$i].name" PRODUCERS.yaml)
-            target_count=$(yq ".producers[$i].targets | length" PRODUCERS.yaml)
-            for j in $(seq 0 $(( target_count - 1 ))); do
-              target=$(yq ".producers[$i].targets[$j]" PRODUCERS.yaml)
-              DEPS="$DEPS        \"@${name}${target}\","$'\n'
-            done
+
+            if [ "$build_system" = "bazel" ]; then
+              target_count=$(yq ".producers[$i].targets | length" PRODUCERS.yaml)
+              for j in $(seq 0 $(( target_count - 1 ))); do
+                target=$(yq ".producers[$i].targets[$j]" PRODUCERS.yaml)
+                DEPS="$DEPS        \"@${name}${target}\","$'\n'
+              done
+            elif [ "$build_system" = "gradle" ]; then
+              third_party_target=$(yq ".producers[$i].third_party_target" PRODUCERS.yaml)
+              DEPS="$DEPS        \"${third_party_target}\","$'\n'
+            fi
           done
 
           # Rewrite BUILD with deps injected
@@ -101,7 +156,7 @@ jobs:
 
           APP_FILE="src/main/java/com/example/app/App.java"
 
-          # Collect imports from all producers
+          # Collect imports and calls from all producers
           IMPORTS=""
           CALLS=""
           count=$(yq '.producers | length' PRODUCERS.yaml)

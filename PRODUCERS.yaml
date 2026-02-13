@@ -2,6 +2,7 @@ schema_version: "1.0"
 
 producers:
   - name: composite-monorepo
+    build_system: bazel
     repository: https://github.com/pravasna30-dev/bazel-monorepo.git
     ref: main
     path: ../bazel-monorepo
@@ -10,3 +11,15 @@ producers:
     imports:
       - class: com.acme.arc.dep.test.LowOneMain
         call: LowOneMain.say()
+
+  - name: dep-library
+    build_system: gradle
+    repository: https://github.com/pravasna30-dev/dep-library.git
+    ref: main
+    path: ../dep-library
+    build_command: "./gradlew build"
+    jar_path: build/libs/library-1.0.0.jar
+    third_party_target: "//third_party/dep-library:library"
+    imports:
+      - class: com.example.library.UserService
+        call: "System.out.println(\"All users: \" + new UserService().findAll())"
