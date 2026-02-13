@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout bazel-app
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java 21
         uses: actions/setup-java@v4
@@ -25,6 +27,12 @@ jobs:
         run: |
           sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
+
+      - name: Install target-determinator
+        run: |
+          sudo curl -sL -o /usr/local/bin/target-determinator \
+            https://github.com/bazel-contrib/target-determinator/releases/download/v0.32.0/target-determinator.linux.amd64
+          sudo chmod +x /usr/local/bin/target-determinator
 
       - name: Clone producer repositories
         run: |
@@ -180,6 +188,16 @@ jobs:
           echo "Generated App.java:"
           cat "$APP_FILE"
 
+      - name: Commit generated composite build
+        run: |
+          git add -A
+          git -c user.name="CI" -c user.email="ci@noreply" commit -m "Generated composite build" --allow-empty
+
+      - name: Determine affected targets
+        run: |
+          echo "--- Affected targets (comparing against previous commit) ---"
+          target-determinator HEAD~1 -verbose || true
+
       - name: Verify producer layout
         run: |
           echo "Directory layout:"
@@ -197,7 +215,20 @@ jobs:
           done
 
       - name: Build composite
-        run: bazel build //:app
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            AFFECTED=$(target-determinator HEAD~1 2>/dev/null || echo "")
+            if [ -n "$AFFECTED" ]; then
+              echo "Building affected targets only:"
+              echo "$AFFECTED"
+              echo "$AFFECTED" | xargs bazel build
+            else
+              echo "No affected targets detected, building all"
+              bazel build //:app
+            fi
+          else
+            bazel build //:app
+          fi
 
       - name: Run composite
         run: bazel run //:app
