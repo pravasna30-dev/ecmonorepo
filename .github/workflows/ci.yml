@@ -196,7 +196,7 @@ jobs:
       - name: Determine affected targets
         run: |
           echo "--- Affected targets (comparing against previous commit) ---"
-          target-determinator HEAD~1 -verbose || true
+          target-determinator -verbose HEAD~1 || true
 
       - name: Verify producer layout
         run: |
