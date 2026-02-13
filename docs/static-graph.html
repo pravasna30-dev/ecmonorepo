@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Static Dependency Graph - ECMonorepo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .page { padding: 100px 0 60px; min-height: 100vh; }
+    .page-header { text-align: center; margin-bottom: 48px; }
+    .page-header h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+    .page-header p { font-size: 16px; color: var(--text-muted); }
+
+    /* Tab Controls */
+    .tab-bar {
+      display: inline-flex;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 4px;
+      margin: 0 auto 40px;
+      display: flex;
+      justify-content: center;
+    }
+    .tab-bar-inner {
+      display: inline-flex;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .tab-btn {
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .tab-btn.active { background: var(--accent); color: white; }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Mermaid container */
+    .mermaid-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px 24px;
+      margin-bottom: 32px;
+      text-align: center;
+      overflow-x: auto;
+    }
+
+    .mermaid-container svg { max-width: 100%; height: auto; }
+
+    /* DOT output */
+    .dot-container {
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 32px;
+      position: relative;
+    }
+    .dot-container pre {
+      padding: 24px;
+      margin: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--text-muted);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      color: var(--text-muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--text-muted); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+    /* Dep list */
+    .dep-section { margin-bottom: 40px; }
+    .dep-section h3 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .dep-section p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .dep-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .dep-table th {
+      text-align: left;
+      padding: 10px 16px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .dep-table td {
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(42,42,62,0.5);
+      vertical-align: top;
+    }
+    .dep-table tr:hover td { background: rgba(99,102,241,0.04); }
+    .dep-table code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: var(--surface);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .dep-origin {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 8px;
+    }
+    .origin-local { color: var(--accent-light); background: var(--accent-glow); }
+    .origin-external { color: var(--green); background: rgba(52,211,153,0.1); }
+    .origin-toolchain { color: var(--text-muted); background: var(--surface); }
+
+    .query-hint {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .query-hint code {
+      color: var(--accent-light);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav nav-scrolled">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-logo">
+      <span class="logo-icon">&#9671;</span> ECMonorepo
+    </a>
+    <div class="nav-links">
+      <a href="dependency-graph.html">Interactive</a>
+      <a href="static-graph.html" style="color: var(--text);">Static</a>
+      <a href="index.html#guide">Setup Guide</a>
+      <a href="https://github.com/pravasna30-dev/ecmonorepo" class="nav-github" target="_blank">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<section class="page">
+  <div class="container">
+    <div class="page-header">
+      <h1>Static Dependency Graph</h1>
+      <p>Bazel query output rendered as Mermaid diagrams and raw DOT format.</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <div class="tab-bar-inner">
+        <button class="tab-btn active" data-tab="mermaid">Mermaid Diagram</button>
+        <button class="tab-btn" data-tab="dot">DOT Graph</button>
+        <button class="tab-btn" data-tab="deps">Dependency List</button>
+      </div>
+    </div>
+
+    <!-- ===================== -->
+    <!-- Tab: Mermaid Diagram  -->
+    <!-- ===================== -->
+    <div class="tab-content active" id="tab-mermaid">
+      <div class="query-hint">
+        Generated from: <code>bazel query 'deps(//:app)' --output graph</code>
+      </div>
+
+      <div class="dep-section">
+        <h3>Application Dependency Graph</h3>
+        <p>Shows //:app and its direct library dependencies, source files, and toolchain references.</p>
+      </div>
+
+      <div class="mermaid-container">
+        <pre class="mermaid">
+graph LR
+  classDef consumer fill:#1e1e3a,stroke:#6366f1,stroke-width:2px,color:#e0e0e8
+  classDef producer fill:#162a1e,stroke:#34d399,stroke-width:2px,color:#e0e0e8
+  classDef source fill:#1a1a2e,stroke:#2a2a3e,stroke-width:1px,color:#8888a0
+  classDef toolchain fill:#1a1a1a,stroke:#2a2a3e,stroke-width:1px,color:#555570
+
+  app["//:app<br/><i>java_binary</i>"]:::consumer
+
+  low["@composite-monorepo<br/>//low-level-1:LowLevelOne<br/><i>java_library</i>"]:::producer
+  lib["//library:library<br/><i>java_library</i>"]:::producer
+  mid["//midlib:library<br/><i>java_library</i>"]:::producer
+
+  app --> low
+  app --> lib
+  app --> mid
+
+  appSrc["//:App.java"]:::source
+  lowSrc["@composite-monorepo<br/>LowOneMain.java"]:::source
+  libSrc1["//library<br/>UserService.java"]:::source
+  libSrc2["//library<br/>User.java"]:::source
+  midSrc["//midlib<br/>MidLibService.java"]:::source
+
+  app -.-> appSrc
+  low -.-> lowSrc
+  lib -.-> libSrc1
+  lib -.-> libSrc2
+  mid -.-> midSrc
+
+  tc["@bazel_tools<br/>current_java_toolchain"]:::toolchain
+  rj["@rules_java<br/>current_java_toolchain"]:::toolchain
+
+  app --> tc
+  low --> tc
+  lib --> tc
+  mid --> tc
+  tc --> rj
+        </pre>
+      </div>
+
+      <div class="dep-section">
+        <h3>Focused View: Producer Dependencies Only</h3>
+        <p>Simplified graph showing just the app and its three producer libraries.</p>
+      </div>
+
+      <div class="mermaid-container">
+        <pre class="mermaid">
+graph TD
+  classDef consumer fill:#1e1e3a,stroke:#6366f1,stroke-width:2px,color:#e0e0e8
+  classDef bazel fill:#162a1e,stroke:#34d399,stroke-width:2px,color:#e0e0e8
+  classDef srcCopy fill:#1e2a1e,stroke:#fbbf24,stroke-width:2px,color:#e0e0e8
+
+  app("<b>//:app</b><br/>ecmonorepo<br/><i>java_binary</i>"):::consumer
+
+  low("<b>@composite-monorepo//low-level-1:LowLevelOne</b><br/>bazel-monorepo<br/><i>Bazel module &middot; local_path_override</i>"):::bazel
+  lib("<b>//library:library</b><br/>dep-library<br/><i>Source copy &middot; java_library</i>"):::srcCopy
+  mid("<b>//midlib:library</b><br/>mid-maven-lib<br/><i>Source copy &middot; java_library</i>"):::srcCopy
+
+  app -->|"bazel_dep + local_path_override"| low
+  app -->|"source copy"| lib
+  app -->|"source copy"| mid
+        </pre>
+      </div>
+
+      <div class="dep-section">
+        <h3>Cross-Repository View</h3>
+        <p>Shows the git repositories and how they connect through the ECMonorepo composite build.</p>
+      </div>
+
+      <div class="mermaid-container">
+        <pre class="mermaid">
+graph TB
+  classDef repo fill:#12121a,stroke:#2a2a3e,stroke-width:1px,color:#e0e0e8
+  classDef consumerRepo fill:#1e1e3a,stroke:#6366f1,stroke-width:2px,color:#e0e0e8
+
+  subgraph consumer ["ecmonorepo (Consumer)"]
+    direction TB
+    app["//:app &mdash; java_binary"]
+    libPkg["//library:library"]
+    midPkg["//midlib:library"]
+    module["MODULE.bazel"]
+    build["BUILD"]
+  end
+
+  subgraph prod1 ["bazel-monorepo"]
+    direction TB
+    p1mod["MODULE.bazel<br/>name: composite-monorepo"]
+    p1tgt["//low-level-1:LowLevelOne"]
+    p1src["LowOneMain.java"]
+  end
+
+  subgraph prod2 ["dep-library"]
+    direction TB
+    p2src["src/main/java/<br/>UserService.java<br/>User.java"]
+  end
+
+  subgraph prod3 ["mid-maven-lib"]
+    direction TB
+    p3src["src/main/java/<br/>MidLibService.java"]
+  end
+
+  module -->|"local_path_override"| p1mod
+  app --> p1tgt
+  p2src -->|"cp sources"| libPkg
+  p3src -->|"cp sources"| midPkg
+  app --> libPkg
+  app --> midPkg
+
+  style consumer fill:#0e0e16,stroke:#6366f1,stroke-width:2px,color:#e0e0e8
+  style prod1 fill:#0e160e,stroke:#34d399,stroke-width:1px,color:#e0e0e8
+  style prod2 fill:#0e160e,stroke:#fbbf24,stroke-width:1px,color:#e0e0e8
+  style prod3 fill:#0e160e,stroke:#fbbf24,stroke-width:1px,color:#e0e0e8
+        </pre>
+      </div>
+    </div>
+
+    <!-- ===================== -->
+    <!-- Tab: DOT Graph        -->
+    <!-- ===================== -->
+    <div class="tab-content" id="tab-dot">
+      <div class="query-hint">
+        Generated from: <code>bazel query 'deps(//:app)' --output graph</code><br>
+        Paste into <a href="https://dreampuf.github.io/GraphvizOnline/" target="_blank">Graphviz Online</a> or run <code>dot -Tsvg deps.dot -o deps.svg</code> locally.
+      </div>
+
+      <div class="dot-container">
+        <button class="copy-btn" id="copy-dot">Copy</button>
+        <pre id="dot-output">digraph mygraph {
+  node [shape=box];
+
+  // ─── Application ───
+  "//:app"
+
+  // ─── Direct producer dependencies ───
+  "//:app" -> "@composite-monorepo//low-level-1:LowLevelOne"
+  "//:app" -> "//library:library"
+  "//:app" -> "//midlib:library"
+
+  // ─── Source files ───
+  "//:app" -> "//:src/main/java/com/example/app/App.java"
+
+  "@composite-monorepo//low-level-1:LowLevelOne" -> "@composite-monorepo//low-level-1:src/main/java/com/acme/arc/dep/test/LowOneMain.java"
+
+  "//library:library" -> "//library:src/main/java/com/example/library/UserService.java"
+  "//library:library" -> "//library:src/main/java/com/example/library/User.java"
+
+  "//midlib:library" -> "//midlib:src/main/java/com/example/midlib/MidLibService.java"
+
+  // ─── Toolchain ───
+  "//:app" -> "@bazel_tools//tools/jdk:current_java_toolchain"
+  "@composite-monorepo//low-level-1:LowLevelOne" -> "@bazel_tools//tools/jdk:current_java_toolchain"
+  "//library:library" -> "@bazel_tools//tools/jdk:current_java_toolchain"
+  "//midlib:library" -> "@bazel_tools//tools/jdk:current_java_toolchain"
+
+  "@bazel_tools//tools/jdk:current_java_toolchain" -> "@rules_java//toolchains:current_java_toolchain"
+  "@rules_java//toolchains:current_java_toolchain" -> "@rules_java//:license"
+  "@rules_java//:license" -> "@rules_java//:LICENSE"
+
+  "//:app" -> "@bazel_tools//tools/jdk:toolchain_type"
+  "//:app" -> "@bazel_tools//tools/jdk:java_plugins_flag_alias"
+  "//:app" -> "@bazel_tools//tools/build_defs/build_info:java_build_info"
+  "//:app" -> "@bazel_tools//tools/launcher:launcher"
+  "//:app" -> "@@platforms//os:windows"
+
+  "@bazel_tools//tools/launcher:launcher" -> "@bazel_tools//tools/launcher:launcher_toolchain_type"
+  "@@platforms//os:windows" -> "@@platforms//os:os"
+}</pre>
+      </div>
+    </div>
+
+    <!-- ===================== -->
+    <!-- Tab: Dependency List  -->
+    <!-- ===================== -->
+    <div class="tab-content" id="tab-deps">
+
+      <div class="dep-section">
+        <h3>Direct Dependencies</h3>
+        <div class="query-hint">Generated from: <code>bazel query 'deps(//:app, 1)'</code></div>
+        <table class="dep-table">
+          <thead>
+            <tr><th>Target</th><th>Origin</th><th>Type</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>@composite-monorepo//low-level-1:LowLevelOne</code></td>
+              <td><span class="dep-origin origin-external">external</span></td>
+              <td>java_library (Bazel module)</td>
+            </tr>
+            <tr>
+              <td><code>//library:library</code></td>
+              <td><span class="dep-origin origin-local">local</span></td>
+              <td>java_library (source copy from dep-library)</td>
+            </tr>
+            <tr>
+              <td><code>//midlib:library</code></td>
+              <td><span class="dep-origin origin-local">local</span></td>
+              <td>java_library (source copy from mid-maven-lib)</td>
+            </tr>
+            <tr>
+              <td><code>//:src/main/java/com/example/app/App.java</code></td>
+              <td><span class="dep-origin origin-local">local</span></td>
+              <td>source file</td>
+            </tr>
+            <tr>
+              <td><code>@bazel_tools//tools/jdk:current_java_toolchain</code></td>
+              <td><span class="dep-origin origin-toolchain">toolchain</span></td>
+              <td>Java toolchain</td>
+            </tr>
+            <tr>
+              <td><code>@bazel_tools//tools/jdk:toolchain_type</code></td>
+              <td><span class="dep-origin origin-toolchain">toolchain</span></td>
+              <td>Toolchain type</td>
+            </tr>
+            <tr>
+              <td><code>@bazel_tools//tools/launcher:launcher</code></td>
+              <td><span class="dep-origin origin-toolchain">toolchain</span></td>
+              <td>Binary launcher</td>
+            </tr>
+            <tr>
+              <td><code>@rules_java//java/bazel/rules:java_stub_template.txt</code></td>
+              <td><span class="dep-origin origin-toolchain">toolchain</span></td>
+              <td>rules_java template</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="dep-section">
+        <h3>Full Transitive Dependencies</h3>
+        <div class="query-hint">Generated from: <code>bazel query 'deps(//:app)'</code></div>
+        <table class="dep-table">
+          <thead>
+            <tr><th>Target</th><th>Origin</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>//:app</code></td><td><span class="dep-origin origin-local">local</span></td></tr>
+            <tr><td><code>//:src/main/java/com/example/app/App.java</code></td><td><span class="dep-origin origin-local">local</span></td></tr>
+            <tr><td><code>//library:library</code></td><td><span class="dep-origin origin-local">local</span></td></tr>
+            <tr><td><code>//library:src/main/java/com/example/library/User.java</code></td><td><span class="dep-origin origin-local">local</span></td></tr>
+            <tr><td><code>//library:src/main/java/com/example/library/UserService.java</code></td><td><span class="dep-origin origin-local">local</span></td></tr>
+            <tr><td><code>//midlib:library</code></td><td><span class="dep-origin origin-local">local</span></td></tr>
+            <tr><td><code>//midlib:src/main/java/com/example/midlib/MidLibService.java</code></td><td><span class="dep-origin origin-local">local</span></td></tr>
+            <tr><td><code>@composite-monorepo//low-level-1:LowLevelOne</code></td><td><span class="dep-origin origin-external">external</span></td></tr>
+            <tr><td><code>@composite-monorepo//low-level-1:src/main/java/com/acme/arc/dep/test/LowOneMain.java</code></td><td><span class="dep-origin origin-external">external</span></td></tr>
+            <tr><td><code>@bazel_tools//tools/build_defs/build_info:java_build_info</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@bazel_tools//tools/jdk:current_java_toolchain</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@bazel_tools//tools/jdk:java_plugins_flag_alias</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@bazel_tools//tools/jdk:toolchain_type</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@bazel_tools//tools/launcher:launcher</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@bazel_tools//tools/launcher:launcher_toolchain_type</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@@platforms//os:os</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@@platforms//os:windows</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@rules_java//:LICENSE</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@rules_java//:license</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+            <tr><td><code>@rules_java//toolchains:current_java_toolchain</code></td><td><span class="dep-origin origin-toolchain">toolchain</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="logo-icon">&#9671;</span> ECMonorepo
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/pravasna30-dev/ecmonorepo" target="_blank">GitHub</a>
+        <a href="dependency-graph.html">Interactive Graph</a>
+        <a href="index.html">Home</a>
+      </div>
+    </div>
+    <p class="footer-note">Built with Bazel 9.0 &middot; Java 21</p>
+  </div>
+</footer>
+
+<!-- Mermaid CDN -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#12121a',
+      primaryColor: '#1e1e3a',
+      primaryTextColor: '#e0e0e8',
+      primaryBorderColor: '#6366f1',
+      lineColor: '#6366f1',
+      secondaryColor: '#162a1e',
+      tertiaryColor: '#1a1a2e',
+      fontFamily: 'Inter, sans-serif',
+      fontSize: '13px'
+    }
+  });
+</script>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// Copy DOT
+document.getElementById('copy-dot').addEventListener('click', function() {
+  const text = document.getElementById('dot-output').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    this.textContent = 'Copied!';
+    this.classList.add('copied');
+    setTimeout(() => {
+      this.textContent = 'Copy';
+      this.classList.remove('copied');
+    }, 2000);
+  });
+});
+</script>
+
+</body>
+</html>
