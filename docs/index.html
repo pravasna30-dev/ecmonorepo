@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECMonorepo - Eventual Consistent Monorepo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <span class="logo-icon">&#9671;</span> ECMonorepo
+    </a>
+    <div class="nav-links">
+      <a href="#advantages">Advantages</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#guide">Setup Guide</a>
+      <a href="https://github.com/pravasna30-dev/ecmonorepo" class="nav-github" target="_blank">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="container hero-content">
+    <div class="hero-badge">Cross-Build-System Composite Builds</div>
+    <h1>Eventual Consistent<br><span class="gradient-text">Monorepo</span></h1>
+    <p class="hero-sub">
+      A specification and tooling for cross-repository composite builds that work
+      across Bazel, Gradle, and Maven &mdash; without forcing everyone onto the same build system.
+    </p>
+    <div class="hero-actions">
+      <a href="#guide" class="btn btn-primary">Get Started</a>
+      <a href="#architecture" class="btn btn-secondary">How It Works</a>
+    </div>
+    <div class="hero-diagram">
+      <div class="diagram-node diagram-producer-1">
+        <div class="diagram-label">Producer A</div>
+        <div class="diagram-tag">Bazel</div>
+      </div>
+      <div class="diagram-arrow diagram-arrow-1">&rarr;</div>
+      <div class="diagram-node diagram-consumer">
+        <div class="diagram-label">Consumer</div>
+        <div class="diagram-tag">Bazel</div>
+      </div>
+      <div class="diagram-arrow diagram-arrow-2">&larr;</div>
+      <div class="diagram-node diagram-producer-2">
+        <div class="diagram-label">Producer B</div>
+        <div class="diagram-tag">Gradle</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Problem -->
+<section class="section section-dark" id="problem">
+  <div class="container">
+    <div class="section-header">
+      <h2>The Problem</h2>
+      <p>Real organizations don't live in a single-build-system world.</p>
+    </div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-icon">&#128679;</div>
+        <h3>Migration is Expensive</h3>
+        <p>Moving every team to a single monorepo and build system takes years. You need integration <em>now</em>.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">&#128268;</div>
+        <h3>Repos Drift Apart</h3>
+        <p>Without continuous integration between repos, breaking changes are discovered at release time &mdash; not at PR time.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">&#9888;&#65039;</div>
+        <h3>Artifact Hell</h3>
+        <p>Publishing JARs/artifacts manually creates version coordination nightmares. Who published what? Is it the latest?</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Advantages -->
+<section class="section" id="advantages">
+  <div class="container">
+    <div class="section-header">
+      <h2>Why Eventual Consistency</h2>
+      <p>Get monorepo benefits without the monorepo migration.</p>
+    </div>
+    <div class="advantages-list">
+
+      <div class="advantage-item">
+        <div class="advantage-number">01</div>
+        <div class="advantage-content">
+          <h3>Build from Source, Always</h3>
+          <p>No published artifacts. No version coordination. CI clones the producer at a pinned ref and builds everything from source. You always know exactly what code you're integrating against.</p>
+        </div>
+      </div>
+
+      <div class="advantage-item">
+        <div class="advantage-number">02</div>
+        <div class="advantage-content">
+          <h3>Catch Breaks at PR Time</h3>
+          <p>When a producer changes, its <code>CONSUMERS.yaml</code> triggers downstream consumer builds. Breaking changes are caught <em>before merge</em>, not after release. Every PR is tested against all consumers.</p>
+        </div>
+      </div>
+
+      <div class="advantage-item">
+        <div class="advantage-number">03</div>
+        <div class="advantage-content">
+          <h3>Cross-Build-System</h3>
+          <p>Bazel consumer depending on a Gradle producer? No problem. CI copies the source and generates native Bazel <code>java_library</code> targets. Each team keeps their build system &mdash; the composite build bridges them.</p>
+        </div>
+      </div>
+
+      <div class="advantage-item">
+        <div class="advantage-number">04</div>
+        <div class="advantage-content">
+          <h3>Incremental Adoption</h3>
+          <p>Start with one producer-consumer pair. Add more as needed. No big-bang migration. Each repo opts in by adding a <code>PRODUCERS.yaml</code> or <code>CONSUMERS.yaml</code>.</p>
+        </div>
+      </div>
+
+      <div class="advantage-item">
+        <div class="advantage-number">05</div>
+        <div class="advantage-content">
+          <h3>Declarative &amp; Auditable</h3>
+          <p>All dependencies are declared in YAML. CI generates everything on the fly &mdash; MODULE.bazel, BUILD files, source imports. Nothing is committed that could drift. The YAML <em>is</em> the truth.</p>
+        </div>
+      </div>
+
+      <div class="advantage-item">
+        <div class="advantage-number">06</div>
+        <div class="advantage-content">
+          <h3>Affected Target Detection</h3>
+          <p>Integrated with <a href="https://github.com/bazel-contrib/target-determinator">target-determinator</a> to identify exactly which targets changed. On PRs, only affected targets are built &mdash; scaling to large composite graphs.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section class="section section-dark" id="architecture">
+  <div class="container">
+    <div class="section-header">
+      <h2>Architecture</h2>
+      <p>Two YAML files create a bidirectional dependency graph across repositories.</p>
+    </div>
+
+    <div class="arch-cards">
+      <div class="arch-card">
+        <div class="arch-card-header">
+          <span class="arch-card-icon">&#128230;</span>
+          <h3>PRODUCERS.yaml</h3>
+          <span class="arch-card-badge">Consumer Repo</span>
+        </div>
+        <p>&ldquo;Who do I depend on?&rdquo;</p>
+        <div class="code-block">
+<pre><code><span class="code-key">producers:</span>
+  - <span class="code-key">name:</span> composite-monorepo
+    <span class="code-key">build_system:</span> bazel
+    <span class="code-key">repository:</span> github.com/.../bazel-monorepo
+    <span class="code-key">ref:</span> main
+    <span class="code-key">targets:</span>
+      - <span class="code-str">"//low-level-1:LowLevelOne"</span>
+
+  - <span class="code-key">name:</span> dep-library
+    <span class="code-key">build_system:</span> source
+    <span class="code-key">repository:</span> github.com/.../dep-library
+    <span class="code-key">source_root:</span> src/main/java
+    <span class="code-key">package_name:</span> library
+    <span class="code-key">target:</span> <span class="code-str">"//library:library"</span></code></pre>
+        </div>
+      </div>
+
+      <div class="arch-card">
+        <div class="arch-card-header">
+          <span class="arch-card-icon">&#128226;</span>
+          <h3>CONSUMERS.yaml</h3>
+          <span class="arch-card-badge">Producer Repo</span>
+        </div>
+        <p>&ldquo;Who depends on me?&rdquo;</p>
+        <div class="code-block">
+<pre><code><span class="code-key">producer:</span>
+  <span class="code-key">name:</span> composite-monorepo
+  <span class="code-key">build_system:</span> bazel
+
+<span class="code-key">consumers:</span>
+  - <span class="code-key">name:</span> ecmonorepo
+    <span class="code-key">repository:</span> github.com/.../ecmonorepo
+    <span class="code-key">ref:</span> main
+    <span class="code-key">build_system:</span> bazel
+    <span class="code-key">criticality:</span> critical
+    <span class="code-key">ci:</span>
+      <span class="code-key">trigger_on_update:</span> <span class="code-bool">true</span>
+      <span class="code-key">test_command:</span> <span class="code-str">"bazel test //..."</span></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flow Diagram -->
+    <div class="flow-section">
+      <h3>CI Flow</h3>
+      <div class="flow-tabs">
+        <button class="flow-tab active" data-tab="consumer">Consumer Side</button>
+        <button class="flow-tab" data-tab="producer">Producer Side</button>
+      </div>
+
+      <div class="flow-content active" id="flow-consumer">
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <div class="flow-step-text">
+              <strong>Read PRODUCERS.yaml</strong>
+              <span>Parse all upstream dependencies</span>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <div class="flow-step-text">
+              <strong>Clone each producer</strong>
+              <span>At the specified ref (branch, tag, SHA)</span>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <div class="flow-step-text">
+              <strong>Generate build config</strong>
+              <span>MODULE.bazel, BUILD files, source packages</span>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">4</div>
+            <div class="flow-step-text">
+              <strong>Generate source code</strong>
+              <span>Inject imports and verification calls</span>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">5</div>
+            <div class="flow-step-text">
+              <strong>Build and run</strong>
+              <span>Verify the full composite integration</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-content" id="flow-producer">
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <div class="flow-step-text">
+              <strong>Read CONSUMERS.yaml</strong>
+              <span>Parse all downstream consumers</span>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <div class="flow-step-text">
+              <strong>Clone each consumer</strong>
+              <span>At the specified ref</span>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <div class="flow-step-text">
+              <strong>Wire composite build</strong>
+              <span>Point each consumer to local producer source</span>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">4</div>
+            <div class="flow-step-text">
+              <strong>Run consumer tests</strong>
+              <span>Against the new producer code</span>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="flow-step-num">5</div>
+            <div class="flow-step-text">
+              <strong>Block PR if broken</strong>
+              <span>Catch breaking changes before merge</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Integration Types -->
+    <div class="integration-section">
+      <h3>Integration Types</h3>
+      <div class="integration-grid">
+        <div class="integration-card">
+          <div class="integration-header">
+            <span class="integration-icon">&#9670;</span>
+            <h4>Bazel Module</h4>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Config</span>
+            <span>MODULE.bazel + BUILD</span>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Wiring</span>
+            <span>local_path_override</span>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Dep format</span>
+            <code>@module//pkg:target</code>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">From source</span>
+            <span class="tag-yes">Yes (external module)</span>
+          </div>
+        </div>
+        <div class="integration-card">
+          <div class="integration-header">
+            <span class="integration-icon">&#9674;</span>
+            <h4>Source Copy</h4>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Config</span>
+            <span>{pkg}/BUILD</span>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Wiring</span>
+            <span>cp sources + java_library</span>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Dep format</span>
+            <code>//pkg:target</code>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">From source</span>
+            <span class="tag-yes">Yes (native package)</span>
+          </div>
+        </div>
+        <div class="integration-card">
+          <div class="integration-header">
+            <span class="integration-icon">&#9679;</span>
+            <h4>Gradle</h4>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Config</span>
+            <span>settings.gradle.kts</span>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Wiring</span>
+            <span>includeBuild + depSubst</span>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Dep format</span>
+            <code>group:artifact:version</code>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">From source</span>
+            <span class="tag-yes">Yes (composite)</span>
+          </div>
+        </div>
+        <div class="integration-card">
+          <div class="integration-header">
+            <span class="integration-icon">&#9632;</span>
+            <h4>Maven</h4>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Config</span>
+            <span>pom.xml</span>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Wiring</span>
+            <span>mvn install + GAV</span>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">Dep format</span>
+            <code>groupId:artifactId:ver</code>
+          </div>
+          <div class="integration-detail">
+            <span class="integration-label">From source</span>
+            <span class="tag-no">No (requires install)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Setup Guide -->
+<section class="section" id="guide">
+  <div class="container">
+    <div class="section-header">
+      <h2>Setup Guide</h2>
+      <p>Step-by-step instructions for consumers and producers.</p>
+    </div>
+
+    <div class="guide-tabs">
+      <button class="guide-tab active" data-guide="consumer">I'm a Consumer</button>
+      <button class="guide-tab" data-guide="producer">I'm a Producer</button>
+    </div>
+
+    <!-- Consumer Guide -->
+    <div class="guide-content active" id="guide-consumer">
+      <p class="guide-intro">You want to depend on code from another repository. Follow these steps to declare and wire up your upstream dependencies.</p>
+
+      <div class="guide-step">
+        <div class="guide-step-header">
+          <span class="guide-step-num">Step 1</span>
+          <h3>Create PRODUCERS.yaml</h3>
+        </div>
+        <p>In the root of your repository, create <code>PRODUCERS.yaml</code>. This file declares all your upstream dependencies.</p>
+        <div class="code-block">
+<pre><code><span class="code-key">schema_version:</span> <span class="code-str">"1.0"</span>
+
+<span class="code-key">producers:</span>
+  - <span class="code-key">name:</span> my-dependency
+    <span class="code-key">build_system:</span> bazel      <span class="code-comment"># bazel | source | gradle | maven</span>
+    <span class="code-key">repository:</span> https://github.com/org/my-dependency.git
+    <span class="code-key">ref:</span> main               <span class="code-comment"># branch, tag, or commit SHA</span>
+    <span class="code-key">path:</span> ../my-dependency   <span class="code-comment"># clone location (sibling dir)</span></code></pre>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-header">
+          <span class="guide-step-num">Step 2</span>
+          <h3>Choose your integration type</h3>
+        </div>
+        <p>Based on the producer's build system and your consumer's build system, add the right fields.</p>
+
+        <div class="guide-option">
+          <h4>Option A: Bazel module (producer is Bazel)</h4>
+          <p>The producer is already a Bazel project with a MODULE.bazel. Use <code>local_path_override</code> to reference it.</p>
+          <div class="code-block">
+<pre><code>  - <span class="code-key">name:</span> composite-monorepo
+    <span class="code-key">build_system:</span> bazel
+    <span class="code-key">repository:</span> https://github.com/org/bazel-monorepo.git
+    <span class="code-key">ref:</span> main
+    <span class="code-key">path:</span> ../bazel-monorepo
+    <span class="code-key">targets:</span>
+      - <span class="code-str">"//low-level-1:LowLevelOne"</span>
+    <span class="code-key">imports:</span>
+      - <span class="code-key">class:</span> com.acme.LowOneMain
+        <span class="code-key">call:</span> LowOneMain.say()</code></pre>
+          </div>
+          <p class="guide-note">CI generates: <code>bazel_dep()</code> + <code>local_path_override()</code> in MODULE.bazel</p>
+        </div>
+
+        <div class="guide-option">
+          <h4>Option B: Source copy (producer is Gradle/Maven, consumer is Bazel)</h4>
+          <p>The producer uses a different build system. CI copies its Java sources into a native Bazel package.</p>
+          <div class="code-block">
+<pre><code>  - <span class="code-key">name:</span> dep-library
+    <span class="code-key">build_system:</span> source
+    <span class="code-key">repository:</span> https://github.com/org/dep-library.git
+    <span class="code-key">ref:</span> main
+    <span class="code-key">path:</span> ../dep-library
+    <span class="code-key">source_root:</span> src/main/java    <span class="code-comment"># where sources live</span>
+    <span class="code-key">package_name:</span> library         <span class="code-comment"># Bazel package name</span>
+    <span class="code-key">target:</span> <span class="code-str">"//library:library"</span>
+    <span class="code-key">imports:</span>
+      - <span class="code-key">class:</span> com.example.library.UserService
+        <span class="code-key">call:</span> <span class="code-str">"new UserService().findAll()"</span></code></pre>
+          </div>
+          <p class="guide-note">CI generates: <code>library/BUILD</code> with <code>java_library</code> + copies sources</p>
+        </div>
+
+        <div class="guide-option">
+          <h4>Option C: Gradle composite (both are Gradle)</h4>
+          <div class="code-block">
+<pre><code>  - <span class="code-key">name:</span> shared-lib
+    <span class="code-key">build_system:</span> gradle
+    <span class="code-key">repository:</span> https://github.com/org/shared-lib.git
+    <span class="code-key">ref:</span> main
+    <span class="code-key">path:</span> ../shared-lib
+    <span class="code-key">settings_snippet:</span> |
+      includeBuild(<span class="code-str">"../shared-lib"</span>) {
+          dependencySubstitution {
+              substitute(module(<span class="code-str">"com.org:shared-lib"</span>))
+                  .using(project(<span class="code-str">":"</span>))
+          }
+      }</code></pre>
+          </div>
+          <p class="guide-note">CI generates: appends <code>includeBuild()</code> to settings.gradle.kts</p>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-header">
+          <span class="guide-step-num">Step 3</span>
+          <h3>Create the CI workflow</h3>
+        </div>
+        <p>Add a GitHub Actions workflow that reads <code>PRODUCERS.yaml</code> and generates the composite build on the fly.</p>
+        <div class="code-block">
+<pre><code><span class="code-key">name:</span> Composite Build CI
+
+<span class="code-key">on:</span>
+  <span class="code-key">push:</span>
+    <span class="code-key">branches:</span> [main]
+  <span class="code-key">pull_request:</span>
+    <span class="code-key">branches:</span> [main]
+
+<span class="code-key">jobs:</span>
+  <span class="code-key">build:</span>
+    <span class="code-key">runs-on:</span> ubuntu-latest
+    <span class="code-key">steps:</span>
+      - <span class="code-key">uses:</span> actions/checkout@v4
+        <span class="code-key">with:</span>
+          <span class="code-key">fetch-depth:</span> <span class="code-bool">0</span>
+
+      - <span class="code-key">name:</span> Clone producers
+        <span class="code-key">run:</span> |
+          <span class="code-comment"># Parse PRODUCERS.yaml, clone each repo</span>
+          count=$(yq '.producers | length' PRODUCERS.yaml)
+          for i in $(seq 0 $(( count - 1 ))); do
+            repo=$(yq ".producers[$i].repository" PRODUCERS.yaml)
+            ref=$(yq ".producers[$i].ref" PRODUCERS.yaml)
+            path=$(yq ".producers[$i].path" PRODUCERS.yaml)
+            git clone --branch "$ref" --depth 1 "$repo" "$path"
+          done
+
+      - <span class="code-key">name:</span> Wire + Build + Run
+        <span class="code-key">run:</span> |
+          <span class="code-comment"># Generate MODULE.bazel, BUILD, source code</span>
+          <span class="code-comment"># (see full workflow in the repo)</span>
+          bazel run //:app</code></pre>
+        </div>
+        <p>See the <a href="https://github.com/pravasna30-dev/ecmonorepo/blob/main/.github/workflows/ci.yml">full CI workflow</a> for the complete implementation.</p>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-header">
+          <span class="guide-step-num">Step 4</span>
+          <h3>Verify locally</h3>
+        </div>
+        <p>Clone the producers as siblings and run:</p>
+        <div class="code-block">
+<pre><code><span class="code-comment"># Clone producers alongside your repo</span>
+git clone https://github.com/org/bazel-monorepo.git ../bazel-monorepo
+git clone https://github.com/org/dep-library.git ../dep-library
+
+<span class="code-comment"># Wire up locally (MODULE.bazel, BUILD, sources)</span>
+<span class="code-comment"># Then build and run</span>
+bazel run //:app
+
+<span class="code-comment"># Expected output:</span>
+<span class="code-str">I love bazel</span>
+<span class="code-str">Low-level-1</span>
+<span class="code-str">All users: [User{id=1, ...}, User{id=2, ...}]</span></code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Producer Guide -->
+    <div class="guide-content" id="guide-producer">
+      <p class="guide-intro">You own a library that other repos depend on. Follow these steps to enable downstream testing on your PRs.</p>
+
+      <div class="guide-step">
+        <div class="guide-step-header">
+          <span class="guide-step-num">Step 1</span>
+          <h3>Create CONSUMERS.yaml</h3>
+        </div>
+        <p>In the root of your repository, create <code>CONSUMERS.yaml</code>. This declares all repos that depend on you.</p>
+        <div class="code-block">
+<pre><code><span class="code-key">schema_version:</span> <span class="code-str">"1.0"</span>
+
+<span class="code-key">producer:</span>
+  <span class="code-key">name:</span> composite-monorepo
+  <span class="code-key">repository:</span> https://github.com/org/bazel-monorepo.git
+  <span class="code-key">build_system:</span> bazel
+
+<span class="code-key">consumers:</span>
+  - <span class="code-key">name:</span> ecmonorepo
+    <span class="code-key">repository:</span> https://github.com/pravasna30-dev/ecmonorepo.git
+    <span class="code-key">ref:</span> main
+    <span class="code-key">build_system:</span> bazel
+    <span class="code-key">criticality:</span> critical    <span class="code-comment"># critical | important | optional</span>
+    <span class="code-key">contact:</span> team@example.com
+    <span class="code-key">ci:</span>
+      <span class="code-key">trigger_on_update:</span> <span class="code-bool">true</span>
+      <span class="code-key">test_command:</span> <span class="code-str">"bazel test //..."</span></code></pre>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-header">
+          <span class="guide-step-num">Step 2</span>
+          <h3>Create the producer CI workflow</h3>
+        </div>
+        <p>Add a workflow that clones consumers on every PR and runs their tests against your changes.</p>
+        <div class="code-block">
+<pre><code><span class="code-key">name:</span> Consumer Integration Tests
+
+<span class="code-key">on:</span>
+  <span class="code-key">pull_request:</span>
+    <span class="code-key">branches:</span> [main]
+
+<span class="code-key">jobs:</span>
+  <span class="code-key">test-consumers:</span>
+    <span class="code-key">runs-on:</span> ubuntu-latest
+    <span class="code-key">steps:</span>
+      - <span class="code-key">uses:</span> actions/checkout@v4
+
+      - <span class="code-key">name:</span> Clone and test consumers
+        <span class="code-key">run:</span> |
+          for consumer in $(yq '.consumers[].repository' CONSUMERS.yaml); do
+            name=$(basename "$consumer" .git)
+            ref=$(yq ".consumers[] |
+              select(.repository == \"$consumer\") | .ref" CONSUMERS.yaml)
+            git clone --branch "$ref" --depth 1 "$consumer" "../$name"
+          done
+
+      - <span class="code-key">name:</span> Wire and test each consumer
+        <span class="code-key">run:</span> |
+          for name in $(yq '.consumers[].name' CONSUMERS.yaml); do
+            <span class="code-comment"># Generate composite config pointing to local producer</span>
+            <span class="code-comment"># Run consumer's test command</span>
+            cd "../$name"
+            test_cmd=$(yq ".consumers[] |
+              select(.name == \"$name\") | .ci.test_command" \
+              ../$(basename $PWD)/CONSUMERS.yaml)
+            eval "$test_cmd"
+          done</code></pre>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-header">
+          <span class="guide-step-num">Step 3</span>
+          <h3>Ensure visibility</h3>
+        </div>
+        <p>Make sure your Bazel targets are publicly visible so consumers can depend on them.</p>
+        <div class="code-block">
+<pre><code><span class="code-comment"># In your BUILD files, add visibility</span>
+java_library(
+    name = <span class="code-str">"LowLevelOne"</span>,
+    srcs = glob([<span class="code-str">"src/main/java/**/*.java"</span>]),
+    visibility = [<span class="code-str">"//visibility:public"</span>],
+)</code></pre>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-header">
+          <span class="guide-step-num">Step 4</span>
+          <h3>Add criticality levels</h3>
+        </div>
+        <p>Tag each consumer with a criticality level to control how failures affect your PR:</p>
+        <div class="criticality-grid">
+          <div class="criticality-item criticality-critical">
+            <strong>critical</strong>
+            <p>PR is blocked if this consumer breaks. Core dependencies that must never break.</p>
+          </div>
+          <div class="criticality-item criticality-important">
+            <strong>important</strong>
+            <p>PR shows a warning but is not blocked. Important consumers that should be fixed soon.</p>
+          </div>
+          <div class="criticality-item criticality-optional">
+            <strong>optional</strong>
+            <p>Informational only. Nice to know, but won't affect the PR.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="logo-icon">&#9671;</span> ECMonorepo
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/pravasna30-dev/ecmonorepo" target="_blank">GitHub</a>
+        <a href="https://github.com/pravasna30-dev/ecmonorepo/blob/main/composite-build-spec.yaml" target="_blank">Full Spec</a>
+        <a href="https://github.com/pravasna30-dev/ecmonorepo/blob/main/.github/workflows/ci.yml" target="_blank">CI Workflow</a>
+      </div>
+    </div>
+    <p class="footer-note">Built with Bazel 9.0 &middot; Java 21 &middot; target-determinator v0.32.0</p>
+  </div>
+</footer>
+
+<script>
+// Tab switching for flow diagrams
+document.querySelectorAll('.flow-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.flow-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.flow-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('flow-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Tab switching for guide
+document.querySelectorAll('.guide-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.guide-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.guide-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('guide-' + tab.dataset.guide).classList.add('active');
+  });
+});
+
+// Smooth scroll
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+// Nav background on scroll
+const nav = document.querySelector('.nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('nav-scrolled', window.scrollY > 50);
+});
+
+// Animate elements on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.advantage-item, .arch-card, .guide-step, .problem-card, .integration-card').forEach(el => {
+  observer.observe(el);
+});
+</script>
+
+</body>
+</html>
