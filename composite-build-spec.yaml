@@ -23,7 +23,7 @@
 #   │ "These repos consume me" │ ◄──────► │ "I depend on these repos"│
 #   └──────────────────────────┘          └──────────────────────────┘
 #
-# Supported build systems: Bazel, Gradle, Maven
+# Supported integration types: Bazel (module), Source (copy), Gradle, Maven
 # =============================================================================
 
 schema_version: "1.0"
@@ -212,6 +212,76 @@ wiring:
         verify: "All consumer tests pass"
 
   # ---------------------------------------------------------------------------
+  # Source (native integration)
+  # ---------------------------------------------------------------------------
+  source:
+    description: >
+      Source integration copies Java source files from the producer into a
+      local Bazel package within the consumer repo. CI generates a java_library
+      BUILD file so the sources are built natively by Bazel — no external
+      build system needed. This is ideal for integrating non-Bazel producers
+      (Gradle, Maven) into a Bazel consumer without requiring their build tool.
+
+    local:
+      steps:
+        - description: Clone producer as sibling directory
+          command: "git clone {producer.repository} {producer.path}"
+        - description: Copy sources into local Bazel package
+          command: |
+            mkdir -p {producer.package_name}/src/main/java
+            cp -r {producer.path}/{producer.source_root}/* {producer.package_name}/src/main/java/
+        - description: Generate java_library BUILD file
+          file: "{producer.package_name}/BUILD"
+          action: create
+          content: |
+            load("@rules_java//java:defs.bzl", "java_library")
+            java_library(
+                name = "library",
+                srcs = glob(["src/main/java/**/*.java"]),
+                visibility = ["//visibility:public"],
+            )
+        - description: Add target to BUILD deps
+          file: BUILD
+          action: inject_deps
+          content: "{producer.target}"
+        - description: Import and call in source code
+          file: "src/main/java/**/*.java"
+          action: add_imports_and_calls
+          content: "{producer.imports}"
+      verify: "bazel run //:app"
+
+    ci:
+      consumer_side:
+        description: >
+          Consumer CI: reads PRODUCERS.yaml, clones producer, copies sources
+          into a local Bazel package, generates java_library BUILD, builds
+          and runs.
+        steps:
+          - description: Checkout consumer
+            action: "actions/checkout@v4"
+          - description: Clone producer at specified ref
+            command: "git clone --branch {producer.ref} --single-branch --depth 1 {producer.repository} {producer.path}"
+          - description: Copy sources into local Bazel package
+            command: |
+              mkdir -p {producer.package_name}/src/main/java
+              cp -r {producer.path}/{producer.source_root}/* {producer.package_name}/src/main/java/
+          - description: Generate java_library BUILD
+            file: "{producer.package_name}/BUILD"
+            action: create
+            content: |
+              load("@rules_java//java:defs.bzl", "java_library")
+              java_library(name = "library", srcs = glob(["src/main/java/**/*.java"]), visibility = ["//visibility:public"])
+          - description: Generate BUILD with deps
+            file: BUILD
+            action: rewrite_with_deps
+            content: "{producer.target}"
+          - description: Generate source with imports and calls
+            file: "src/main/java/com/example/app/App.java"
+            action: rewrite_with_imports
+            content: "{producer.imports}"
+        verify: "bazel build //:app && bazel run //:app"
+
+  # ---------------------------------------------------------------------------
   # Gradle
   # ---------------------------------------------------------------------------
   gradle:
@@ -382,16 +452,17 @@ wiring:
 # │  5. Block PR if any consumer breaks                                    │
 # └─────────────────────────────────────────────────────────────────────────┘
 #
-# Build System Comparison:
-# ┌─────────────────────┬────────────────────────┬──────────────────────────────┬──────────────────────────┐
-# │ Aspect              │ Bazel                  │ Gradle                       │ Maven                    │
-# ├─────────────────────┼────────────────────────┼──────────────────────────────┼──────────────────────────┤
-# │ Config file         │ MODULE.bazel + BUILD   │ settings.gradle.kts          │ pom.xml                  │
-# │ Local wiring        │ local_path_override    │ includeBuild + depSubst      │ mvn install + GAV in pom │
-# │ CI wiring           │ Generate MODULE + BUILD│ Generate settings.gradle.kts │ mvn install + inject pom │
-# │ Builds from source? │ Yes                    │ Yes (composite) / No (maven) │ No (requires install)    │
-# │ Publish step needed?│ No                     │ No (composite) / Yes (maven) │ Yes (mvn install)        │
-# │ Dep format          │ @module//pkg:target    │ group:artifact:version       │ groupId:artifactId:ver   │
-# │ Transitive deps     │ Explicit in BUILD      │ Automatic                    │ Automatic                │
-# └─────────────────────┴────────────────────────┴──────────────────────────────┴──────────────────────────┘
+# Integration Type Comparison:
+# ┌─────────────────────┬────────────────────────┬─────────────────────────┬──────────────────────────────┬──────────────────────────┐
+# │ Aspect              │ Bazel (module)          │ Source (copy)           │ Gradle                       │ Maven                    │
+# ├─────────────────────┼────────────────────────┼─────────────────────────┼──────────────────────────────┼──────────────────────────┤
+# │ Config file         │ MODULE.bazel + BUILD   │ {pkg}/BUILD             │ settings.gradle.kts          │ pom.xml                  │
+# │ Local wiring        │ local_path_override    │ cp sources + java_lib   │ includeBuild + depSubst      │ mvn install + GAV in pom │
+# │ CI wiring           │ Generate MODULE + BUILD│ cp sources + gen BUILD  │ Generate settings.gradle.kts │ mvn install + inject pom │
+# │ Builds from source? │ Yes (external module)  │ Yes (native package)    │ Yes (composite) / No (maven) │ No (requires install)    │
+# │ Publish step needed?│ No                     │ No                      │ No (composite) / Yes (maven) │ Yes (mvn install)        │
+# │ Dep format          │ @module//pkg:target    │ //pkg:target            │ group:artifact:version       │ groupId:artifactId:ver   │
+# │ Producer build sys  │ Bazel                  │ Any (Gradle, Maven...) │ Gradle                       │ Maven                    │
+# │ Transitive deps     │ Explicit in BUILD      │ Explicit in BUILD       │ Automatic                    │ Automatic                │
+# └─────────────────────┴────────────────────────┴─────────────────────────┴──────────────────────────────┴──────────────────────────┘
 # =============================================================================

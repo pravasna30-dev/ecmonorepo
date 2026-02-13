@@ -13,13 +13,13 @@ producers:
         call: LowOneMain.say()
 
   - name: dep-library
-    build_system: gradle
+    build_system: source
     repository: https://github.com/pravasna30-dev/dep-library.git
     ref: main
     path: ../dep-library
-    build_command: "./gradlew build"
-    jar_path: build/libs/library-1.0.0.jar
-    third_party_target: "//third_party/dep-library:library"
+    source_root: src/main/java
+    package_name: library
+    target: "//library:library"
     imports:
       - class: com.example.library.UserService
         call: "System.out.println(\"All users: \" + new UserService().findAll())"

@@ -66,47 +66,43 @@ jobs:
           echo "Generated MODULE.bazel:"
           cat MODULE.bazel
 
-      - name: Wire Gradle producers (build JAR + third_party)
+      - name: Wire source producers (copy sources + java_library)
         run: |
           echo ""
-          echo "--- Wiring Gradle producers ---"
+          echo "--- Wiring source producers ---"
           count=$(yq '.producers | length' PRODUCERS.yaml)
           for i in $(seq 0 $(( count - 1 ))); do
             build_system=$(yq ".producers[$i].build_system" PRODUCERS.yaml)
-            if [ "$build_system" != "gradle" ]; then
+            if [ "$build_system" != "source" ]; then
               continue
             fi
 
             name=$(yq ".producers[$i].name" PRODUCERS.yaml)
             path=$(yq ".producers[$i].path" PRODUCERS.yaml)
-            build_command=$(yq ".producers[$i].build_command" PRODUCERS.yaml)
-            jar_path=$(yq ".producers[$i].jar_path" PRODUCERS.yaml)
+            source_root=$(yq ".producers[$i].source_root" PRODUCERS.yaml)
+            package_name=$(yq ".producers[$i].package_name" PRODUCERS.yaml)
 
-            echo "Building Gradle producer: $name"
-            pushd "$path"
-            chmod +x gradlew
-            $build_command
-            popd
+            echo "Copying sources for producer: $name"
+            mkdir -p "$package_name/src/main/java"
+            cp -r "$path/$source_root/"* "$package_name/src/main/java/"
+            echo "Copied $path/$source_root/ -> $package_name/src/main/java/"
 
-            # Copy JAR to third_party
-            mkdir -p "third_party/$name"
-            jar_filename=$(basename "$jar_path")
-            cp "$path/$jar_path" "third_party/$name/$jar_filename"
-            echo "Copied $jar_filename to third_party/$name/"
+            # Generate java_library BUILD file
+            cat > "$package_name/BUILD" << 'EOF'
+load("@rules_java//java:defs.bzl", "java_library")
 
-            # Generate java_import BUILD file
-            cat > "third_party/$name/BUILD" << EOF
-            load("@rules_java//java:defs.bzl", "java_import")
+java_library(
+    name = "library",
+    srcs = glob(["src/main/java/**/*.java"]),
+    visibility = ["//visibility:public"],
+)
+EOF
 
-            java_import(
-                name = "library",
-                jars = ["$jar_filename"],
-                visibility = ["//visibility:public"],
-            )
-          EOF
-
-            echo "Generated third_party/$name/BUILD:"
-            cat "third_party/$name/BUILD"
+            echo "Generated $package_name/BUILD:"
+            cat "$package_name/BUILD"
+            echo ""
+            echo "Source files:"
+            find "$package_name" -name "*.java" -type f
           done
 
       - name: Generate composite BUILD
@@ -127,9 +123,9 @@ jobs:
                 target=$(yq ".producers[$i].targets[$j]" PRODUCERS.yaml)
                 DEPS="$DEPS        \"@${name}${target}\","$'\n'
               done
-            elif [ "$build_system" = "gradle" ]; then
-              third_party_target=$(yq ".producers[$i].third_party_target" PRODUCERS.yaml)
-              DEPS="$DEPS        \"${third_party_target}\","$'\n'
+            elif [ "$build_system" = "source" ]; then
+              target=$(yq ".producers[$i].target" PRODUCERS.yaml)
+              DEPS="$DEPS        \"${target}\","$'\n'
             fi
           done
 
