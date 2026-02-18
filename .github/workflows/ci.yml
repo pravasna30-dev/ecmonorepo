@@ -15,14 +15,20 @@ jobs:
       - name: Checkout ecmonorepo
         uses: actions/checkout@v4
 
+      - name: Checkout bazel-monorepo (producer)
+        uses: actions/checkout@v4
+        with:
+          repository: pravasna30-dev/bazel-monorepo
+          path: ../bazel-monorepo
+
       - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           java-version: "21"
           distribution: "temurin"
 
-      - name: Build
-        run: bazel build //:app
+      - name: Build all targets
+        run: bazel build //...
 
-      - name: Run
-        run: bazel run //:app
+      - name: Run tests
+        run: bazel test //... --test_output=errors

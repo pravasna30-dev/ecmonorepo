@@ -1,0 +1,100 @@
+name: Composite Build POC
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  happy-path:
+    name: "Happy Path - Consumer Tests Pass"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ecmonorepo
+        uses: actions/checkout@v4
+
+      - name: Checkout bazel-monorepo (producer)
+        uses: actions/checkout@v4
+        with:
+          repository: pravasna30-dev/bazel-monorepo
+          path: ../bazel-monorepo
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Build all targets
+        run: bazel build //...
+
+      - name: Run consumer tests
+        run: bazel test //consumer:all --test_output=all
+
+      - name: Show cross-repo dependency graph
+        run: |
+          echo "=== Targets affected by producer library ==="
+          bazel query 'rdeps(//..., @composite-monorepo//library)'
+          echo ""
+          echo "=== Test targets affected by producer library ==="
+          bazel query 'kind("test", rdeps(//..., @composite-monorepo//library))'
+
+  breaking-change:
+    name: "Breaking Change - Detected at Compile Time"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ecmonorepo
+        uses: actions/checkout@v4
+
+      - name: Checkout bazel-monorepo (producer)
+        uses: actions/checkout@v4
+        with:
+          repository: pravasna30-dev/bazel-monorepo
+          path: ../bazel-monorepo
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Verify happy path first
+        run: bazel test //consumer:all --test_output=errors
+
+      - name: Introduce breaking change in producer
+        run: |
+          echo "=== Before change ==="
+          grep "findById" ../bazel-monorepo/library/src/main/java/com/example/library/UserService.java
+          echo ""
+          echo "=== Applying breaking change: findById(Long) → findById(String) ==="
+          sed -i 's/public User findById(Long userId)/public User findById(String userId)/' \
+            ../bazel-monorepo/library/src/main/java/com/example/library/UserService.java
+          sed -i 's/return users.get(userId)/return users.get(Long.parseLong(userId))/' \
+            ../bazel-monorepo/library/src/main/java/com/example/library/UserService.java
+          echo ""
+          echo "=== After change ==="
+          grep "findById" ../bazel-monorepo/library/src/main/java/com/example/library/UserService.java
+
+      - name: Run consumer tests (expect compile failure)
+        run: |
+          echo "=== Running consumer tests against broken producer ==="
+          if bazel test //consumer:all --test_output=errors 2>&1; then
+            echo "ERROR: Tests should have failed but passed!"
+            exit 1
+          else
+            echo ""
+            echo "=== SUCCESS: Breaking change detected at compile time ==="
+            echo "The composite build correctly caught the incompatible API change."
+          fi
+
+      - name: Show affected targets via bazel query
+        run: |
+          echo "=== All targets affected by the library ==="
+          bazel query 'rdeps(//..., @composite-monorepo//library)' 2>/dev/null || true
+          echo ""
+          echo "=== Test targets that would catch this break ==="
+          bazel query 'kind("test", rdeps(//..., @composite-monorepo//library))' 2>/dev/null || true
