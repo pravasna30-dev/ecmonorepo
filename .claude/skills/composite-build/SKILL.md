@@ -278,7 +278,7 @@ bazel run //:gazelle  # Should produce no changes
 | bazel-diff returns empty impacted targets | Use `@` prefix: `--fineGrainedHashExternalRepos=@module` |
 | Stale bazel symlinks cause package errors | Remove `bazel-*` symlinks that point to non-existent paths |
 | Test size warnings | Add `size = "small"` to `java_test_suite` |
-| `actions/checkout` can't access sibling dir | Use `path: ../repo-name` in the checkout step |
+| `actions/checkout` can't access sibling dir | Use `git clone --depth 1` instead of `actions/checkout` for sibling repos |
 
 ## Reference Files
 
